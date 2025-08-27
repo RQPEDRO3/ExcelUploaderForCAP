@@ -24,9 +24,8 @@ process ends (e.g. after the session completes).
 """
 
 import cgi
-import cgitb
 import html
-
+import cgitb
 import json
 import os
 import sys
@@ -166,6 +165,7 @@ def main():
             df = parse_excel(file_bytes)
         except Exception as exc:
             print("Content-type: text/html\n")
+            # Escape error message using html.escape instead of the removed cgi.escape
             print(f"<h1>Error reading Excel file</h1><p>{html.escape(str(exc))}</p>")
             return
         summary, issues, sample_col, analyte_cols = analyze_data(df)
