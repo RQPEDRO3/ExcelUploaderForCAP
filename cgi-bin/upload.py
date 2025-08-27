@@ -25,6 +25,8 @@ process ends (e.g. after the session completes).
 
 import cgi
 import cgitb
+import html
+
 import json
 import os
 import sys
@@ -164,7 +166,7 @@ def main():
             df = parse_excel(file_bytes)
         except Exception as exc:
             print("Content-type: text/html\n")
-            print(f"<h1>Error reading Excel file</h1><p>{cgi.escape(str(exc))}</p>")
+            print(f"<h1>Error reading Excel file</h1><p>{html.escape(str(exc))}</p>")
             return
         summary, issues, sample_col, analyte_cols = analyze_data(df)
         # Store data for subsequent steps (encoded as JSON with data, sample_col, analytes)
@@ -247,11 +249,11 @@ def main():
             analytes_found=summary["analytes_found"],
             specimens=summary["specimens"],
             analyte_tags="".join(
-                f'<span class="tag">{cgi.escape(a)}</span>' for a in summary["analyte_list"]
+                f'<span class="tag">{html.escape(a)}</span>' for a in summary["analyte_list"]
             ),
             issues_html="".join(
-                f'<div class="issue {issue["type"]}"><strong>{issue["type"].replace("_", " ").title()}</strong>: Specimen {cgi.escape(str(issue["specimen"]))}, Analyte {cgi.escape(issue["analyte"])}'
-                + (f', Value: {cgi.escape(str(issue.get("value", "")))}' if "value" in issue else '')
+                f'<div class="issue {issue["type"]}"><strong>{issue["type"].replace("_", " ").title()}</strong>: Specimen {html.escape(str(issue["specimen"]))}, Analyte {html.escape(issue["analyte"])}'
+                + (f', Value: {html.escape(str(issue.get("value", "")))}' if "value" in issue else '')
                 + (f', Count: {issue.get("count")}' if "count" in issue else '')
                 + '</div>'
                 for issue in issues
