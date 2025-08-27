@@ -1,4 +1,370 @@
-#!/usr/bin/env python3
+# Add these imports at the top of your upload.py file
+from cap_automation import perform_cap_automation, AutomationConfig
+
+# Replace the generate_success_page function with this updated version
+def generate_success_page(kit_number, summary, issues, data_key, automation_result=None):
+    """Generate the success page with analysis results and automation status."""
+    # Generate analyte tags
+    analyte_tags = "".join(
+        f'<span class="tag">{html.escape(str(a))}</span>' for a in summary["analyte_list"]
+    )
+    
+    # Generate issues HTML
+    if issues:
+        issues_html = ""
+        for issue in issues:
+            issue_class = issue["type"]
+            issue_title = issue["type"].replace("_", " ").title()
+            
+            if issue["type"] == "error":
+                issues_html += f'<div class="issue error"><strong>Error</strong>: {html.escape(issue["message"])}</div>'
+            else:
+                specimen = html.escape(str(issue.get("specimen", "N/A")))
+                analyte = html.escape(str(issue.get("analyte", "N/A")))
+                
+                issues_html += f'<div class="issue {issue_class}"><strong>{issue_title}</strong>: Specimen {specimen}, Analyte {analyte}'
+                
+                if "value" in issue:
+                    value = html.escape(str(issue["value"]))
+                    issues_html += f', Value: {value}'
+                
+                if "count" in issue:
+                    issues_html += f', Count: {issue["count"]}'
+                
+                issues_html += '</div>'
+    else:
+        issues_html = '<div class="no-issues">No issues detected.</div>'
+    
+    # Generate automation status HTML
+    if automation_result:
+        success, message = automation_result
+        if success:
+            automation_html = f'''
+            <div class="automation-status success">
+                <h4>✅ Automation Completed Successfully</h4>
+                <p><strong>Status:</strong> Data successfully submitted to CAP portal</p>
+                <p><strong>Kit Number:</strong> {html.escape(kit_number)}</p>
+                <p><strong>Result:</strong> {html.escape(message)}</p>
+            </div>'''
+            automation_class = "success-banner"
+            banner_text = f"✅ Excel file processed and data submitted to CAP portal for Kit {html.escape(kit_number)}"
+        else:
+            automation_html = f'''
+            <div class="automation-status error">
+                <h4>❌ Automation Failed</h4>
+                <p><strong>Status:</strong> Could not submit data to CAP portal</p>
+                <p><strong>Kit Number:</strong> {html.escape(kit_number)}</p>
+                <p><strong>Error:</strong> {html.escape(message)}</p>
+                <p><em>Please check your configuration and try again, or submit data manually.</em></p>
+            </div>'''
+            automation_class = "error-banner"
+            banner_text = f"⚠️ Excel file processed but automation failed for Kit {html.escape(kit_number)}"
+    else:
+        automation_html = '''
+        <div class="automation-status">
+            <h4>Automation Status</h4>
+            <p><strong>Status:</strong> Ready for CAP portal integration</p>
+            <p><strong>Next Steps:</strong> Configure automation settings to enable automatic data submission.</p>
+        </div>'''
+        automation_class = "success-banner"
+        banner_text = f"✓ Excel file processed for Kit {html.escape(kit_number)}"
+    
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Processing Complete - Kit {html.escape(kit_number)}</title>
+    <style>
+        body {{ 
+            font-family: Arial, sans-serif;
+            background-color: #f5f9fc; 
+            margin: 0; 
+            padding: 0; 
+            line-height: 1.6;
+        }}
+        header {{ 
+            background-color: #2f59a6; 
+            color: #fff; 
+            padding: 20px; 
+        }}
+        h1 {{ 
+            margin: 0; 
+            font-size: 26px; 
+            font-weight: bold;
+        }}
+        main {{ 
+            max-width: 900px; 
+            margin: 0 auto; 
+            padding: 30px 20px; 
+        }}
+        .success-banner {{ 
+            background: #10b981; 
+            color: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-bottom: 30px; 
+            text-align: center; 
+            font-size: 18px; 
+            font-weight: bold;
+        }}
+        .error-banner {{ 
+            background: #ef4444; 
+            color: white; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-bottom: 30px; 
+            text-align: center; 
+            font-size: 18px; 
+            font-weight: bold;
+        }}
+        .stats {{ 
+            display: flex; 
+            gap: 20px; 
+            margin-bottom: 30px; 
+            flex-wrap: wrap; 
+        }}
+        .stat-card {{ 
+            flex: 1; 
+            min-width: 200px; 
+            background: #fff; 
+            border-radius: 8px; 
+            padding: 20px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
+            text-align: center; 
+        }}
+        .stat-card h3 {{ 
+            margin: 0; 
+            font-size: 18px; 
+            color: #6b7280; 
+            font-weight: bold;
+        }}
+        .stat-card p {{ 
+            font-size: 28px; 
+            margin: 10px 0 0; 
+            color: #111827; 
+            font-weight: bold; 
+        }}
+        .section {{ 
+            background: #fff; 
+            border-radius: 8px; 
+            padding: 25px; 
+            margin-bottom: 20px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
+        }}
+        .section h3 {{ 
+            margin-top: 0; 
+            color: #374151; 
+            font-weight: bold;
+        }}
+        .tag {{ 
+            display: inline-block; 
+            margin: 4px; 
+            padding: 6px 10px; 
+            background: #e5e7eb; 
+            border-radius: 6px; 
+            font-size: 14px; 
+            font-weight: bold;
+        }}
+        .issue {{ 
+            background: #fff; 
+            border-left: 4px solid #f59e0b; 
+            padding: 10px 15px; 
+            margin-bottom: 8px; 
+            border-radius: 4px; 
+            font-size: 14px;
+        }}
+        .issue.non_numeric {{ 
+            border-left-color: #ef4444; 
+        }}
+        .issue.duplicate {{ 
+            border-left-color: #6b7280; 
+        }}
+        .issue.error {{ 
+            border-left-color: #dc2626; 
+            background: #fef2f2; 
+        }}
+        .no-issues {{ 
+            color: #10b981; 
+            font-style: italic; 
+            font-weight: bold;
+        }}
+        .automation-status {{ 
+            background: #eff6ff; 
+            border: 1px solid #dbeafe; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-top: 20px; 
+        }}
+        .automation-status.success {{ 
+            background: #f0f9f0; 
+            border-color: #10b981; 
+        }}
+        .automation-status.error {{ 
+            background: #fef2f2; 
+            border-color: #ef4444; 
+        }}
+        .automation-status h4 {{ 
+            margin-top: 0; 
+            color: #1e40af; 
+            font-weight: bold;
+        }}
+        .automation-status.success h4 {{ 
+            color: #10b981; 
+        }}
+        .automation-status.error h4 {{ 
+            color: #ef4444; 
+        }}
+        .btn {{ 
+            display: inline-block; 
+            padding: 12px 24px; 
+            background-color: #2563eb; 
+            color: #fff; 
+            border-radius: 4px; 
+            text-decoration: none; 
+            margin-top: 20px; 
+            margin-right: 10px; 
+            font-family: Arial, sans-serif; 
+            font-weight: bold;
+        }}
+        .btn:hover {{ 
+            background-color: #1e40af; 
+        }}
+        .btn-secondary {{ 
+            background-color: #6b7280; 
+        }}
+        .btn-secondary:hover {{ 
+            background-color: #4b5563; 
+        }}
+    </style>
+</head>
+<body>
+<header>
+    <h1>Processing Complete</h1>
+    <p>Kit Number: {html.escape(kit_number)}</p>
+</header>
+<main>
+    <div class="{automation_class}">
+        {banner_text}
+    </div>
+    
+    <div class="stats">
+        <div class="stat-card">
+            <h3>Total Records</h3>
+            <p>{summary['total_records']}</p>
+        </div>
+        <div class="stat-card">
+            <h3>Analytes Found</h3>
+            <p>{summary['analytes_found']}</p>
+        </div>
+        <div class="stat-card">
+            <h3>Specimens</h3>
+            <p>{summary['specimens']}</p>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h3>Detected Analytes</h3>
+        {analyte_tags if analyte_tags else '<p>No analytes detected</p>'}
+    </div>
+    
+    <div class="section">
+        <h3>Data Quality Issues</h3>
+        {issues_html}
+    </div>
+    
+    {automation_html}
+    
+    <a class="btn" href="">Upload Another File</a>
+    <a class="btn btn-secondary" href="/">Return to Home</a>
+</main>
+</body>
+</html>"""
+
+
+# Update the main() function to include automation
+def main():
+    """Main CGI handler function with automation."""
+    try:
+        form = cgi.FieldStorage()
+        
+        # Check if both Excel file and kit number are provided
+        if "excel_file" in form and "kit_number" in form:
+            kit_number = form.getfirst("kit_number", "").strip()
+            file_item = form["excel_file"]
+            
+            # Validate kit number
+            if not kit_number or len(kit_number) < 1:
+                print("Content-type: text/html\n")
+                print("<h1>Error</h1><p>Kit number is required.</p>")
+                return
+            
+            # Validate file
+            if not file_item.file or not file_item.filename:
+                print("Content-type: text/html\n")
+                print("<h1>Error</h1><p>No file uploaded or invalid file.</p>")
+                return
+            
+            # Read file content
+            file_bytes = file_item.file.read()
+            
+            if not file_bytes:
+                print("Content-type: text/html\n")
+                print("<h1>Error</h1><p>Uploaded file is empty.</p>")
+                return
+            
+            try:
+                df = parse_excel(file_bytes)
+            except Exception as exc:
+                print("Content-type: text/html\n")
+                print(f"<h1>Error reading Excel file</h1><p>{html.escape(str(exc))}</p>")
+                return
+            
+            # Analyze the data
+            summary, issues, sample_col, analyte_cols = analyze_data(df)
+            
+            # Store data for automation
+            data = {
+                "kit_number": kit_number,
+                "sample_column": sample_col,
+                "analyte_columns": analyte_cols,
+                "records": df.to_dict(orient="records"),
+                "summary": summary
+            }
+            
+            try:
+                data_key = store_temp_data(data)
+            except Exception as exc:
+                print("Content-type: text/html\n")
+                print(f"<h1>Error storing data</h1><p>{html.escape(str(exc))}</p>")
+                return
+            
+            # Attempt automation
+            automation_result = None
+            try:
+                # Check if automation is configured
+                config_manager = AutomationConfig()
+                if config_manager.is_configured():
+                    automation_result = perform_cap_automation(kit_number, data)
+                else:
+                    automation_result = (False, "Automation not configured. Please set up CAP portal credentials.")
+            except Exception as e:
+                automation_result = (False, f"Automation error: {str(e)}")
+            
+            # Generate and send success page
+            print("Content-type: text/html\n")
+            print(generate_success_page(kit_number, summary, issues, data_key, automation_result))
+            
+        else:
+            # Show upload form
+            print("Content-type: text/html\n")
+            print(generate_upload_form())
+    
+    except Exception as e:
+        # Handle any unexpected errors
+        print("Content-type: text/html\n")
+        print(f"<h1>Unexpected Error</h1><p>An error occurred: {html.escape(str(e))}</p>")
+!/usr/bin/env python3
 """
 CGI script to handle Excel file upload, parse its contents and display a summary.
 
