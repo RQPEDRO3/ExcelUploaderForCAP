@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAP Data Entry Automation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f9fc;
+            color: #1f2a37;
+        }
+        header {
+            background-color: #2f59a6;
+            padding: 20px;
+            color: white;
+        }
+        h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        main {
+            padding: 30px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            text-align: center;
+        }
+        .upload-input {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 100%;
+        }
+        .btn {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #2563eb;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+        .requirements {
+            margin-top: 30px;
+            text-align: left;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .requirements ul {
+            list-style: none;
+            padding: 0;
+        }
+        .requirements li {
+            margin: 8px 0;
+            display: flex;
+            align-items: center;
+        }
+        .requirements li::before {
+            content: '•';
+            color: #2563eb;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>CAP Data Entry Automation</h1>
+        <p>Automate laboratory result entry with intelligent Excel processing</p>
+    </header>
+    <main>
+        <div class="card">
+            <h2>Start New Automation</h2>
+            <p>Select an Excel file containing laboratory results to begin automated data entry.</p>
+            <form action="/cgi-bin/upload.py" method="post" enctype="multipart/form-data">
+                <input class="upload-input" type="file" name="excel_file" accept=".xlsx,.xls" required>
+                <button class="btn" type="submit">Open Excel File</button>
+            </form>
+        </div>
+        <div class="requirements">
+            <h3>System Requirements</h3>
+            <ul>
+                <li>Excel with sample and analyte columns</li>
+                <li>CAP system access credentials</li>
+                <li>Result Form Data Entry permissions</li>
+                <li>Stable internet connection</li>
+            </ul>
+        </div>
+    </main>
+</body>
+</html>
