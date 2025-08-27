@@ -1,3 +1,348 @@
+#!/usr/bin/env python3
+"""
+Enhanced CAP Portal Automation Module
+
+This module adds actual automation capabilities to interact with the CAP portal
+and perform automated data entry after Excel file analysis.
+"""
+
+import time
+import logging
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait, Select
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
+import requests
+from urllib.parse import urljoin
+
+
+class CAPPortalAutomator:
+    """Handles automated interaction with CAP portal for data entry."""
+    
+    def __init__(self, portal_url, username, password, headless=False):
+        self.portal_url = portal_url
+        self.username = username
+        self.password = password
+        self.driver = None
+        self.wait = None
+        self.headless = headless
+        
+        # Setup logging
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger(__name__)
+    
+    def setup_driver(self):
+        """Initialize the web driver with appropriate options."""
+        chrome_options = Options()
+        if self.headless:
+            chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--window-size=1920,1080")
+        
+        try:
+            self.driver = webdriver.Chrome(options=chrome_options)
+            self.wait = WebDriverWait(self.driver, 10)
+            self.logger.info("WebDriver initialized successfully")
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to initialize WebDriver: {e}")
+            return False
+    
+    def login(self):
+        """Authenticate with the CAP portal."""
+        try:
+            self.driver.get(self.portal_url)
+            self.logger.info(f"Navigating to CAP portal: {self.portal_url}")
+            
+            # Wait for and fill username
+            username_field = self.wait.until(
+                EC.presence_of_element_located((By.NAME, "username"))
+            )
+            username_field.clear()
+            username_field.send_keys(self.username)
+            
+            # Fill password
+            password_field = self.driver.find_element(By.NAME, "password")
+            password_field.clear()
+            password_field.send_keys(self.password)
+            
+            # Click login button
+            login_button = self.driver.find_element(By.XPATH, "//input[@type='submit' and @value='Login']")
+            login_button.click()
+            
+            # Wait for dashboard or main page to load
+            self.wait.until(
+                EC.presence_of_element_located((By.CLASS_NAME, "dashboard"))
+            )
+            
+            self.logger.info("Successfully logged into CAP portal")
+            return True
+            
+        except TimeoutException:
+            self.logger.error("Login timeout - check portal URL and credentials")
+            return False
+        except Exception as e:
+            self.logger.error(f"Login failed: {e}")
+            return False
+    
+    def find_kit_form(self, kit_number):
+        """Navigate to and locate the specific kit form."""
+        try:
+            # Look for kit search or navigation
+            search_box = self.wait.until(
+                EC.presence_of_element_located((By.NAME, "kit_search"))
+            )
+            search_box.clear()
+            search_box.send_keys(kit_number)
+            
+            # Click search button
+            search_button = self.driver.find_element(By.XPATH, "//input[@value='Search Kit']")
+            search_button.click()
+            
+            # Wait for kit form to load
+            kit_form = self.wait.until(
+                EC.presence_of_element_located((By.ID, "kit-data-form"))
+            )
+            
+            self.logger.info(f"Found kit form for {kit_number}")
+            return True
+            
+        except TimeoutException:
+            self.logger.error(f"Could not find kit form for {kit_number}")
+            return False
+        except Exception as e:
+            self.logger.error(f"Error finding kit form: {e}")
+            return False
+    
+    def populate_specimen_data(self, specimen_id, analyte_data):
+        """Fill in data for a specific specimen."""
+        try:
+            # Find the specimen row or section
+            specimen_section = self.driver.find_element(
+                By.XPATH, f"//tr[@data-specimen-id='{specimen_id}']"
+            )
+            
+            # Populate each analyte value
+            for analyte_name, value in analyte_data.items():
+                try:
+                    # Look for input field for this analyte
+                    analyte_input = specimen_section.find_element(
+                        By.XPATH, f".//input[@data-analyte='{analyte_name}']"
+                    )
+                    analyte_input.clear()
+                    analyte_input.send_keys(str(value))
+                    
+                    self.logger.debug(f"Set {analyte_name} = {value} for specimen {specimen_id}")
+                    
+                except NoSuchElementException:
+                    self.logger.warning(f"Could not find input for analyte {analyte_name}")
+                    continue
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error populating specimen {specimen_id}: {e}")
+            return False
+    
+    def submit_data(self):
+        """Submit the completed form."""
+        try:
+            # Find and click submit button
+            submit_button = self.driver.find_element(By.XPATH, "//input[@type='submit' and @value='Submit Data']")
+            submit_button.click()
+            
+            # Wait for confirmation
+            confirmation = self.wait.until(
+                EC.presence_of_element_located((By.CLASS_NAME, "success-message"))
+            )
+            
+            self.logger.info("Data submitted successfully")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error submitting data: {e}")
+            return False
+    
+    def automate_data_entry(self, kit_number, processed_data):
+        """Main automation workflow."""
+        try:
+            # Setup and login
+            if not self.setup_driver():
+                return False, "Failed to initialize web driver"
+            
+            if not self.login():
+                return False, "Failed to login to CAP portal"
+            
+            # Find the kit form
+            if not self.find_kit_form(kit_number):
+                return False, f"Could not locate kit form for {kit_number}"
+            
+            # Process each specimen
+            sample_col = processed_data.get('sample_column')
+            analyte_cols = processed_data.get('analyte_columns', [])
+            records = processed_data.get('records', [])
+            
+            success_count = 0
+            error_count = 0
+            
+            for record in records:
+                specimen_id = record.get(sample_col)
+                if not specimen_id:
+                    continue
+                
+                # Extract analyte data for this specimen
+                analyte_data = {}
+                for analyte in analyte_cols:
+                    value = record.get(analyte)
+                    if value is not None and str(value).strip():
+                        analyte_data[analyte] = value
+                
+                # Populate the specimen data
+                if self.populate_specimen_data(specimen_id, analyte_data):
+                    success_count += 1
+                else:
+                    error_count += 1
+                
+                # Brief pause between specimens
+                time.sleep(0.5)
+            
+            # Submit the form
+            if success_count > 0:
+                if self.submit_data():
+                    message = f"Successfully processed {success_count} specimens, {error_count} errors"
+                    return True, message
+                else:
+                    return False, "Data entry completed but submission failed"
+            else:
+                return False, "No valid data to submit"
+            
+        except Exception as e:
+            self.logger.error(f"Automation workflow failed: {e}")
+            return False, f"Automation failed: {str(e)}"
+        
+        finally:
+            if self.driver:
+                self.driver.quit()
+
+
+def execute_automation(kit_number, processed_data, config):
+    """Execute the automation process with the provided data."""
+    
+    # Extract configuration
+    portal_url = config.get('portal_url', 'https://cap.org/portal')
+    username = config.get('username')
+    password = config.get('password')
+    headless = config.get('headless', True)
+    
+    if not username or not password:
+        return False, "CAP portal credentials not configured"
+    
+    # Initialize automator
+    automator = CAPPortalAutomator(
+        portal_url=portal_url,
+        username=username,
+        password=password,
+        headless=headless
+    )
+    
+    # Execute automation
+    return automator.automate_data_entry(kit_number, processed_data)
+
+
+# Configuration management
+class AutomationConfig:
+    """Manages automation configuration and credentials."""
+    
+    def __init__(self, config_file='cap_config.json'):
+        self.config_file = config_file
+        self.config = self.load_config()
+    
+    def load_config(self):
+        """Load configuration from file."""
+        try:
+            import json
+            import os
+            
+            if os.path.exists(self.config_file):
+                with open(self.config_file, 'r') as f:
+                    return json.load(f)
+        except Exception as e:
+            logging.warning(f"Could not load config file: {e}")
+        
+        # Return default config
+        return {
+            'portal_url': 'https://cap.org/portal',
+            'username': '',
+            'password': '',
+            'headless': True,
+            'timeout': 30,
+            'retry_attempts': 3
+        }
+    
+    def save_config(self, config):
+        """Save configuration to file."""
+        try:
+            import json
+            with open(self.config_file, 'w') as f:
+                json.dump(config, f, indent=2)
+            return True
+        except Exception as e:
+            logging.error(f"Could not save config: {e}")
+            return False
+    
+    def is_configured(self):
+        """Check if automation is properly configured."""
+        return (self.config.get('username') and 
+                self.config.get('password') and 
+                self.config.get('portal_url'))
+
+
+# Updated main function integration
+def perform_cap_automation(kit_number, processed_data):
+    """
+    Main function to perform CAP portal automation.
+    This replaces the placeholder message in your original script.
+    """
+    
+    # Load configuration
+    config_manager = AutomationConfig()
+    
+    if not config_manager.is_configured():
+        return False, "Automation not configured. Please set up CAP portal credentials."
+    
+    # Execute automation
+    success, message = execute_automation(kit_number, processed_data, config_manager.config)
+    
+    return success, message
+
+
+# Example usage for testing
+if __name__ == "__main__":
+    # Test configuration
+    test_config = {
+        'portal_url': 'https://cap.org/portal',
+        'username': 'test_user',
+        'password': 'test_pass',
+        'headless': True
+    }
+    
+    # Test data
+    test_data = {
+        'sample_column': 'Specimen_ID',
+        'analyte_columns': ['Glucose', 'Cholesterol', 'Triglycerides'],
+        'records': [
+            {'Specimen_ID': 'S001', 'Glucose': '95', 'Cholesterol': '180', 'Triglycerides': '120'},
+            {'Specimen_ID': 'S002', 'Glucose': '110', 'Cholesterol': '200', 'Triglycerides': '150'}
+        ]
+    }
+    
+    success, message = execute_automation('TEST-KIT-001', test_data, test_config)
+    print(f"Automation result: {success}")
+    print(f"Message: {message}")
 <!DOCTYPE html>
 <html lang="en">
 <head>
