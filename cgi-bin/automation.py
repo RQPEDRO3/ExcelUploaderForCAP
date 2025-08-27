@@ -14,6 +14,7 @@ the kit number and basic information about the data. It illustrates
 where automation would normally occur.
 """
 import cgi
+import html
 import cgitb
 import json
 import os
@@ -78,7 +79,7 @@ def main():
 </body>
 </html>
 """.format(
-        kit=cgi.escape(kit_number),
+        kit=html.escape(kit_number),
         specimens=specimen_count,
         analytes=analyte_count,
         records=record_count,
